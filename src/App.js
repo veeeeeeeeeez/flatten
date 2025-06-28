@@ -148,10 +148,10 @@ export default function FlattenApp() {
   return (
     <div className="bg-gray-50 text-black h-screen w-screen flex flex-col font-mono relative">
       <div className="absolute top-4 right-6 flex gap-2">
-        <button onClick={handleFetchGmail} className="p-2 rounded bg-blue-500 text-white z-50">
+        <button onClick={handleFetchGmail} className="p-2 px-4 rounded border border-gray-200 bg-white text-black z-50 hover:bg-gray-50 transition">
           Fetch Gmail
         </button>
-        <button onClick={handleLogout} className="p-2 rounded bg-red-500 text-white z-50">
+        <button onClick={handleLogout} className="p-2 px-4 rounded border border-gray-200 bg-white text-black z-50 hover:bg-red-50 transition">
           LOGOUT
         </button>
       </div>
@@ -209,176 +209,191 @@ export default function FlattenApp() {
           </select>
         </div>
             <div className="w-full px-4 overflow-y-auto space-y-4 transition-all duration-200 pb-32 bg-gray-50">
-              {(() => {
-                let lastDate = null;
-                function safeParseISO(ts) {
-                  try {
-                    if (!ts) return null;
-                    const d = parseISO(ts);
-                    if (isNaN(d)) return null;
-                    return d;
-                  } catch {
-                    return null;
+              {filtered.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-80 gap-4">
+                  <div className="border border-gray-300 rounded-lg p-4 w-full max-w-xs flex flex-col items-center cursor-pointer hover:shadow-sm transition bg-white">
+                    <span className="text-base font-semibold text-gray-700 mb-1">Connect Gmail</span>
+                    <span className="text-gray-400 text-xs mb-3 text-center">Import your emails to get started.</span>
+                    <button onClick={handleFetchGmail} className="px-3 py-1 rounded border border-gray-300 bg-white text-gray-700 font-medium hover:bg-gray-50 transition">Connect Gmail</button>
+                  </div>
+                  <div className="border border-gray-200 rounded-lg p-4 w-full max-w-xs flex flex-col items-center opacity-60 cursor-not-allowed bg-white">
+                    <span className="text-base font-semibold text-gray-700 mb-1">Connect Slack</span>
+                    <span className="text-gray-400 text-xs mb-3 text-center">(Coming soon)</span>
+                    <button disabled className="px-3 py-1 rounded border border-gray-200 bg-white text-gray-400 font-medium">Connect Slack</button>
+                  </div>
+                </div>
+              ) : (
+                (() => {
+                  let lastDate = null;
+                  function safeParseISO(ts) {
+                    try {
+                      if (!ts) return null;
+                      const d = parseISO(ts);
+                      if (isNaN(d)) return null;
+                      return d;
+                    } catch {
+                      return null;
+                    }
                   }
-                }
-                return filtered.map((msg, idx) => {
-                  const dateObj = safeParseISO(msg.timestamp);
-                  const showHeader = dateObj && (!lastDate || !isSameDay(dateObj, lastDate));
-                  lastDate = dateObj;
-                  return (
-                    <React.Fragment key={msg.id}>
-                      {showHeader && dateObj && (
-                        <div className="text-lg font-bold text-gray-500 mt-8 mb-2">{format(dateObj, 'MMMM d')}</div>
-                      )}
-                      <div>
-                        <div
-                          className={`border border-gray-200 p-4 bg-white relative hover:bg-gray-50 cursor-pointer group ${expandedMsgId === msg.id ? 'rounded-t-xl rounded-b-none' : 'rounded-xl'}`}
-                          onClick={() => setExpandedMsgId(expandedMsgId === msg.id ? null : msg.id)}
-                        >
-                          {/* Context line */}
-                          <div className="flex items-center justify-between mb-1">
-                            <div className="text-xs text-gray-400 flex items-center gap-1 flex-wrap">
-                              {/* Gmail context */}
-                              {msg.source === 'Gmail' && msg.subject && (
-                                <><span>Gmail</span><span>•</span><span className="font-mono truncate max-w-[180px] inline-block align-middle">{msg.subject}</span></>
-                              )}
-                              {/* Slack context */}
-                              {msg.source === 'Slack' && msg.channel && (
-                                <><span>Slack</span><span>•</span><span className="font-mono">#{msg.channel}</span></>
-                              )}
-                              {/* DM context */}
-                              {msg.isDM && (
-                                <><span>Slack</span><span>•</span><span>DM with {msg.participants?.filter(p => p !== 'You').join(', ')}</span></>
-                              )}
-                              {/* Thread context */}
-                              {msg.isThread && msg.threadParentPreview && (
-                                <>
-                                  <span>↪ reply to "{msg.threadParentPreview}"</span>
-                                  {(msg.isThread || msg.isDM) && (
-                                    <span className="text-blue-500 cursor-pointer select-none ml-1 inline-block opacity-0 group-hover:opacity-100 transition" onClick={e => { e.stopPropagation(); alert('Show full thread for message ' + msg.id); }}>
-                                      View full thread ↗
-                                    </span>
-                                  )}
-                                </>
-                              )}
-                              {/* Email context */}
-                              {msg.source === 'Email' && msg.subject && (
-                                <><span>Email</span><span>•</span><span className="font-mono truncate max-w-[180px] inline-block align-middle">{msg.subject}</span></>
-                              )}
+                  return filtered.map((msg, idx) => {
+                    const dateObj = safeParseISO(msg.timestamp);
+                    const showHeader = dateObj && (!lastDate || !isSameDay(dateObj, lastDate));
+                    lastDate = dateObj;
+                    return (
+                      <React.Fragment key={msg.id}>
+                        {showHeader && dateObj && (
+                          <div className="text-lg font-bold text-gray-500 mt-8 mb-2">{format(dateObj, 'MMMM d')}</div>
+                        )}
+                        <div>
+                          <div
+                            className={`border border-gray-200 p-4 bg-white relative hover:bg-gray-50 cursor-pointer group ${expandedMsgId === msg.id ? 'rounded-t-xl rounded-b-none' : 'rounded-xl'}`}
+                            onClick={() => setExpandedMsgId(expandedMsgId === msg.id ? null : msg.id)}
+                          >
+                            {/* Context line */}
+                            <div className="flex items-center justify-between mb-1">
+                              <div className="text-xs text-gray-400 flex items-center gap-1 flex-wrap">
+                                {/* Gmail context */}
+                                {msg.source === 'Gmail' && msg.subject && (
+                                  <><span>Gmail</span><span>•</span><span className="font-mono truncate max-w-[180px] inline-block align-middle">{msg.subject}</span></>
+                                )}
+                                {/* Slack context */}
+                                {msg.source === 'Slack' && msg.channel && (
+                                  <><span>Slack</span><span>•</span><span className="font-mono">#{msg.channel}</span></>
+                                )}
+                                {/* DM context */}
+                                {msg.isDM && (
+                                  <><span>Slack</span><span>•</span><span>DM with {msg.participants?.filter(p => p !== 'You').join(', ')}</span></>
+                                )}
+                                {/* Thread context */}
+                                {msg.isThread && msg.threadParentPreview && (
+                                  <>
+                                    <span>↪ reply to "{msg.threadParentPreview}"</span>
+                                    {(msg.isThread || msg.isDM) && (
+                                      <span className="text-blue-500 cursor-pointer select-none ml-1 inline-block opacity-0 group-hover:opacity-100 transition" onClick={e => { e.stopPropagation(); alert('Show full thread for message ' + msg.id); }}>
+                                        View full thread ↗
+                                      </span>
+                                    )}
+                                  </>
+                                )}
+                                {/* Email context */}
+                                {msg.source === 'Email' && msg.subject && (
+                                  <><span>Email</span><span>•</span><span className="font-mono truncate max-w-[180px] inline-block align-middle">{msg.subject}</span></>
+                                )}
+                              </div>
+                              <span className="text-xs text-gray-400 ml-4 whitespace-nowrap">
+                                {dateObj ? format(dateObj, 'p') : ''}
+                              </span>
                             </div>
-                            <span className="text-xs text-gray-400 ml-4 whitespace-nowrap">
-                              {dateObj ? format(dateObj, 'p') : ''}
-                            </span>
-                          </div>
-                          {/* Main message row */}
-                          <div className="text-sm mt-1 whitespace-pre-wrap">
-                            {msg.sender ? (
-                              (() => {
+                            {/* Main message row */}
+                            <div className="text-sm mt-1 whitespace-pre-wrap">
+                              {msg.sender ? (
+                                (() => {
+                                  function decodeHTMLEntities(str) {
+                                    const txt = document.createElement('textarea');
+                                    txt.innerHTML = str;
+                                    return txt.value;
+                                  }
+                                  const match = msg.sender.match(/^(.*?)\s*<([^>]+)>$/);
+                                  if (match) {
+                                    const name = decodeHTMLEntities(match[1]);
+                                    const email = decodeHTMLEntities(match[2]);
+                                    return <><span style={{ fontWeight: 'bold' }}>{name}</span> &lt;{email}&gt;: </>;
+                                  } else {
+                                    return decodeHTMLEntities(msg.sender) + ': ';
+                                  }
+                                })()
+                              ) : ''}
+                              {(() => {
                                 function decodeHTMLEntities(str) {
                                   const txt = document.createElement('textarea');
                                   txt.innerHTML = str;
                                   return txt.value;
                                 }
-                                const match = msg.sender.match(/^(.*?)\s*<([^>]+)>$/);
-                                if (match) {
-                                  const name = decodeHTMLEntities(match[1]);
-                                  const email = decodeHTMLEntities(match[2]);
-                                  return <><span style={{ fontWeight: 'bold' }}>{name}</span> &lt;{email}&gt;: </>;
-                                } else {
-                                  return decodeHTMLEntities(msg.sender) + ': ';
-                                }
-                              })()
-                            ) : ''}
-                            {(() => {
-                              function decodeHTMLEntities(str) {
-                                const txt = document.createElement('textarea');
-                                txt.innerHTML = str;
-                                return txt.value;
-                              }
-                              return decodeHTMLEntities(msg.content);
-                            })()}
-                          </div>
-                          <div className="mt-2 flex flex-wrap gap-2">
-                            {Array.isArray(msg.tags) && msg.tags.map((tag, i) => (
-                              <span key={i} className={`text-xs px-2 py-1 rounded-full ${tagColor(tag)}`}>{tag}</span>
-                            ))}
-                          </div>
-                          <div className="absolute bottom-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100">
-                            <button onClick={e => { e.stopPropagation(); deleteMessage(msg.id); }} className="text-red-500 hover:text-red-700">
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                            <button onClick={e => { e.stopPropagation(); alert('Choose list to add'); }}> <Plus className="w-4 h-4 text-gray-500" /></button>
-                          </div>
-                        </div>
-                        {expandedMsgId === msg.id && (
-                          <>
-                            {/* Mock AI Action Items */}
-                            {mockActionItems[msg.id] && mockActionItems[msg.id].length > 0 && (
-                              <div className="mb-0 border border-t-0 border-gray-200 bg-white px-4 pt-4 pb-2 flex flex-col gap-2 rounded-b-none rounded-t-none">
-                                {mockActionItems[msg.id].map((step, idx) => (
-                                  <div key={idx} className={`flex items-center gap-2 ${idx === (actionStepIdx[msg.id] || 0) ? '' : 'opacity-60'}`}>
-                                    <span className="text-xs font-normal text-gray-700 flex-1"><span className="mr-1 text-gray-400">{idx + 1}.</span>{step}</span>
-                                    {/* Always render buttons for layout stability, but hide for non-active steps */}
-                                    <button
-                                      className={`w-5 h-5 text-xs font-bold rounded bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 transition flex items-center justify-center ${idx === (actionStepIdx[msg.id] || 0) ? '' : 'invisible'}`}
-                                      disabled={idx !== (actionStepIdx[msg.id] || 0)}
-                                      onClick={() => idx === (actionStepIdx[msg.id] || 0) && alert('Accepted: ' + step)}
-                                      tabIndex={-1}
-                                    >
-                                      Y
-                                    </button>
-                                    <button
-                                      className={`w-5 h-5 text-xs font-bold rounded bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 transition flex items-center justify-center ${idx === (actionStepIdx[msg.id] || 0) ? '' : 'invisible'}`}
-                                      disabled={idx !== (actionStepIdx[msg.id] || 0)}
-                                      onClick={() => idx === (actionStepIdx[msg.id] || 0) && alert('Rejected: ' + step)}
-                                      tabIndex={-1}
-                                    >
-                                      N
-                                    </button>
-                                    <button
-                                      className={`ml-1 px-1.5 py-0.5 text-xs rounded border text-gray-700 border-gray-200 bg-gray-50 hover:bg-gray-100 transition ${idx === (actionStepIdx[msg.id] || 0) ? '' : 'invisible'}`}
-                                      style={{ minWidth: 36, marginLeft: 'auto' }}
-                                      disabled={idx !== (actionStepIdx[msg.id] || 0)}
-                                      onClick={() => idx === (actionStepIdx[msg.id] || 0) && setActionStepIdx(idxObj => ({ ...idxObj, [msg.id]: ((idxObj[msg.id] || 0) + 1) % mockActionItems[msg.id].length }))}
-                                      tabIndex={-1}
-                                    >
-                                      Tab
-                                    </button>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                            <div
-                              className="border border-t-0 border-gray-200 rounded-b-xl bg-white px-4 py-4 flex flex-col gap-2"
-                              tabIndex={-1}
-                              onKeyDown={e => {
-                                if (
-                                  mockActionItems[msg.id] &&
-                                  mockActionItems[msg.id].length > 0 &&
-                                  e.key === 'Tab'
-                                ) {
-                                  e.preventDefault();
-                                  setActionStepIdx(idxObj => ({ ...idxObj, [msg.id]: ((idxObj[msg.id] || 0) + 1) % mockActionItems[msg.id].length }));
-                                }
-                              }}
-                            >
-                              <textarea className="w-full h-24 p-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-gray-300 text-black bg-white" placeholder="Give a command or respond..." />
-                              <div className="flex justify-end">
-                                <button className="mt-2 p-2 rounded-full bg-black hover:bg-gray-800 flex items-center justify-center text-white">
-                                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="white" xmlns="http://www.w3.org/2000/svg">
-                                    <circle cx="12" cy="12" r="12" fill="black" />
-                                    <path d="M12 8V16M12 8L8 12M12 8L16 12" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                                  </svg>
-                                </button>
-                              </div>
+                                return decodeHTMLEntities(msg.content);
+                              })()}
                             </div>
-                          </>
-                        )}
-                      </div>
-                    </React.Fragment>
-                  );
-                });
-              })()}
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              {Array.isArray(msg.tags) && msg.tags.map((tag, i) => (
+                                <span key={i} className={`text-xs px-2 py-1 rounded-full ${tagColor(tag)}`}>{tag}</span>
+                              ))}
+                            </div>
+                            <div className="absolute bottom-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100">
+                              <button onClick={e => { e.stopPropagation(); deleteMessage(msg.id); }} className="text-red-500 hover:text-red-700">
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                              <button onClick={e => { e.stopPropagation(); alert('Choose list to add'); }}> <Plus className="w-4 h-4 text-gray-500" /></button>
+                            </div>
+                          </div>
+                          {expandedMsgId === msg.id && (
+                            <>
+                              {/* Mock AI Action Items */}
+                              {mockActionItems[msg.id] && mockActionItems[msg.id].length > 0 && (
+                                <div className="mb-0 border border-t-0 border-gray-200 bg-white px-4 pt-4 pb-2 flex flex-col gap-2 rounded-b-none rounded-t-none">
+                                  {mockActionItems[msg.id].map((step, idx) => (
+                                    <div key={idx} className={`flex items-center gap-2 ${idx === (actionStepIdx[msg.id] || 0) ? '' : 'opacity-60'}`}>
+                                      <span className="text-xs font-normal text-gray-700 flex-1"><span className="mr-1 text-gray-400">{idx + 1}.</span>{step}</span>
+                                      {/* Always render buttons for layout stability, but hide for non-active steps */}
+                                      <button
+                                        className={`w-5 h-5 text-xs font-bold rounded bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 transition flex items-center justify-center ${idx === (actionStepIdx[msg.id] || 0) ? '' : 'invisible'}`}
+                                        disabled={idx !== (actionStepIdx[msg.id] || 0)}
+                                        onClick={() => idx === (actionStepIdx[msg.id] || 0) && alert('Accepted: ' + step)}
+                                        tabIndex={-1}
+                                      >
+                                        Y
+                                      </button>
+                                      <button
+                                        className={`w-5 h-5 text-xs font-bold rounded bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 transition flex items-center justify-center ${idx === (actionStepIdx[msg.id] || 0) ? '' : 'invisible'}`}
+                                        disabled={idx !== (actionStepIdx[msg.id] || 0)}
+                                        onClick={() => idx === (actionStepIdx[msg.id] || 0) && alert('Rejected: ' + step)}
+                                        tabIndex={-1}
+                                      >
+                                        N
+                                      </button>
+                                      <button
+                                        className={`ml-1 px-1.5 py-0.5 text-xs rounded border text-gray-700 border-gray-200 bg-gray-50 hover:bg-gray-100 transition ${idx === (actionStepIdx[msg.id] || 0) ? '' : 'invisible'}`}
+                                        style={{ minWidth: 36, marginLeft: 'auto' }}
+                                        disabled={idx !== (actionStepIdx[msg.id] || 0)}
+                                        onClick={() => idx === (actionStepIdx[msg.id] || 0) && setActionStepIdx(idxObj => ({ ...idxObj, [msg.id]: ((idxObj[msg.id] || 0) + 1) % mockActionItems[msg.id].length }))}
+                                        tabIndex={-1}
+                                      >
+                                        Tab
+                                      </button>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                              <div
+                                className="border border-t-0 border-gray-200 rounded-b-xl bg-white px-4 py-4 flex flex-col gap-2"
+                                tabIndex={-1}
+                                onKeyDown={e => {
+                                  if (
+                                    mockActionItems[msg.id] &&
+                                    mockActionItems[msg.id].length > 0 &&
+                                    e.key === 'Tab'
+                                  ) {
+                                    e.preventDefault();
+                                    setActionStepIdx(idxObj => ({ ...idxObj, [msg.id]: ((idxObj[msg.id] || 0) + 1) % mockActionItems[msg.id].length }));
+                                  }
+                                }}
+                              >
+                                <textarea className="w-full h-24 p-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-gray-300 text-black bg-white" placeholder="Give a command or respond..." />
+                                <div className="flex justify-end">
+                                  <button className="mt-2 p-2 rounded-full bg-black hover:bg-gray-800 flex items-center justify-center text-white">
+                                    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="white" xmlns="http://www.w3.org/2000/svg">
+                                      <circle cx="12" cy="12" r="12" fill="black" />
+                                      <path d="M12 8V16M12 8L8 12M12 8L16 12" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                                    </svg>
+                                  </button>
+                                </div>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      </React.Fragment>
+                    );
+                  });
+                })()
+              )}
             </div>
           </div>
         </div>
