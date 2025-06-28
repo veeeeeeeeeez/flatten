@@ -139,7 +139,7 @@ export default function FlattenApp() {
       user = supabase.auth.user();
     }
     if (user && user.id) {
-      window.location.href = `http://localhost:8081/auth/google?user_id=${user.id}`;
+      window.location.href = `https://flatten.onrender.com/auth/google?user_id=${user.id}`;
     } else {
       alert('You must be logged in to fetch Gmail messages.');
     }
