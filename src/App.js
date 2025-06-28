@@ -11,6 +11,7 @@ export default function FlattenApp() {
   const [selectedMsg, setSelectedMsg] = useState(null);
   const [filter, setFilter] = useState({ source: "All", tag: "All" });
   const [messages, setMessages] = useState([]);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     async function fetchMessages() {
@@ -127,29 +128,46 @@ export default function FlattenApp() {
 
   const deleteMessage = (id) => setMessages((msgs) => msgs.filter((m) => m.id !== id));
 
-  // Add this function to trigger Gmail fetch
-  const handleFetchGmail = async () => {
+  // Replace Fetch Gmail button with a refresh that uses the /refresh-gmail endpoint
+  const handleRefreshGmail = async () => {
     let user = null;
     if (supabase.auth.getUser) {
-      // Newer SDK
       const { data } = await supabase.auth.getUser();
       user = data.user;
     } else {
-      // Older SDK
       user = supabase.auth.user();
     }
     if (user && user.id) {
-      window.location.href = `https://flatten.onrender.com/auth/google?user_id=${user.id}`;
+      setRefreshing(true);
+      try {
+        const res = await fetch(`https://flatten.onrender.com/refresh-gmail?user_id=${user.id}`);
+        if (!res.ok) throw new Error(await res.text());
+        // Re-fetch messages from Supabase
+        const { data, error } = await supabase
+          .from('messages')
+          .select('*')
+          .order('created_at', { ascending: false });
+        if (error) {
+          alert('Fetched Gmail, but failed to refresh messages: ' + error.message);
+        } else {
+          setMessages(data);
+          alert('Fetched and saved new emails!');
+        }
+      } catch (err) {
+        alert('Failed to fetch Gmail: ' + err.message);
+      } finally {
+        setRefreshing(false);
+      }
     } else {
-      alert('You must be logged in to fetch Gmail messages.');
+      alert('You must be logged in to refresh Gmail messages.');
     }
   };
 
   return (
     <div className="bg-gray-50 text-black h-screen w-screen flex flex-col font-mono relative">
       <div className="absolute top-4 right-6 flex gap-2">
-        <button onClick={handleFetchGmail} className="p-2 px-4 rounded border border-gray-200 bg-white text-black z-50 hover:bg-gray-50 transition">
-          Fetch Gmail
+        <button onClick={handleRefreshGmail} className="p-2 px-4 rounded border border-gray-200 bg-white text-black z-50 hover:bg-red-50 transition" disabled={refreshing}>
+          {refreshing ? 'Refreshing...' : 'Refresh Gmail'}
         </button>
         <button onClick={handleLogout} className="p-2 px-4 rounded border border-gray-200 bg-white text-black z-50 hover:bg-red-50 transition">
           LOGOUT
@@ -214,7 +232,9 @@ export default function FlattenApp() {
                   <div className="border border-gray-300 rounded-lg p-4 w-full max-w-xs flex flex-col items-center cursor-pointer hover:shadow-sm transition bg-white">
                     <span className="text-base font-semibold text-gray-700 mb-1">Connect Gmail</span>
                     <span className="text-gray-400 text-xs mb-3 text-center">Import your emails to get started.</span>
-                    <button onClick={handleFetchGmail} className="px-3 py-1 rounded border border-gray-300 bg-white text-gray-700 font-medium hover:bg-gray-50 transition">Connect Gmail</button>
+                    <button onClick={handleRefreshGmail} className="px-3 py-1 rounded border border-gray-300 bg-white text-gray-700 font-medium hover:bg-gray-50 transition" disabled={refreshing}>
+                      {refreshing ? 'Refreshing...' : 'Refresh Gmail'}
+                    </button>
                   </div>
                   <div className="border border-gray-200 rounded-lg p-4 w-full max-w-xs flex flex-col items-center opacity-60 cursor-not-allowed bg-white">
                     <span className="text-base font-semibold text-gray-700 mb-1">Connect Slack</span>
