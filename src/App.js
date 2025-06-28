@@ -137,11 +137,18 @@ export default function FlattenApp() {
     } else {
       user = supabase.auth.user();
     }
+    console.log('User:', user); // Debug log
     if (user && user.id) {
       setRefreshing(true);
       try {
+        console.log('Making request to:', `https://flatten.onrender.com/refresh-gmail?user_id=${user.id}`); // Debug log
         const res = await fetch(`https://flatten.onrender.com/refresh-gmail?user_id=${user.id}`);
-        if (!res.ok) throw new Error(await res.text());
+        console.log('Response status:', res.status); // Debug log
+        if (!res.ok) {
+          const errorText = await res.text();
+          console.log('Error response:', errorText); // Debug log
+          throw new Error(errorText);
+        }
         // Re-fetch messages from Supabase
         const { data, error } = await supabase
           .from('messages')
@@ -154,6 +161,7 @@ export default function FlattenApp() {
           alert('Fetched and saved new emails!');
         }
       } catch (err) {
+        console.error('Fetch error:', err); // Debug log
         alert('Failed to fetch Gmail: ' + err.message);
       } finally {
         setRefreshing(false);
