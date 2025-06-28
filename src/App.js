@@ -1,27 +1,30 @@
 // Flatten Wireframe – Adds Side Pane for Lists, Right Pane for Message Details, Drag & Drop, and Controls
 import React, { useState, useEffect } from "react";
-import { Mic, Sun, Moon, X, Trash2, Plus, ChevronLeft, ChevronRight, Check } from "lucide-react";
+import { Mic, X, Trash2, Plus, ChevronLeft, ChevronRight} from "lucide-react";
+import { supabase } from './supabaseClient';
+import ListsPane from './ListsPane';
 
 export default function FlattenApp() {
   const [isPaletteOpen, setIsPaletteOpen] = useState(false);
   const [command, setCommand] = useState("");
   const [selectedMsg, setSelectedMsg] = useState(null);
   const [filter, setFilter] = useState({ source: "All", tag: "All" });
-  const [darkMode, setDarkMode] = useState(false);
-  const [lists, setLists] = useState(["Follow Up", "Design Ideas", "Personal" ]);
-  const [messages, setMessages] = useState([
-    { id: 1, source: "Slack", sender: "Alex", content: "Alex: Can you share the Stripe payment metrics before standup?", timestamp: "9:22 AM", tags: ["work", "payments", "urgent"], channel: "payments", isThread: true, threadParentPreview: "Stripe metrics for Q2", isDM: false },
-    { id: 2, source: "Email", sender: "YC", content: "YC Team: Confirming your interview is set for Thursday, 10AM PST. Zoom link attached.", timestamp: "9:19 AM", tags: ["work", "schedule"], subject: "Interview Confirmation" },
-    { id: 3, source: "Slack", sender: "Jenny", content: "Jenny: reposted a story — 'Everyone should vote today 🗳️'", timestamp: "9:15 AM", tags: ["personal"], isDM: true, participants: ["Jenny", "You"] },
-    { id: 4, source: "Slack", sender: "Marco", content: "Marco: Final draft of the deck is in the shared folder. Let me know if it looks tight.", timestamp: "9:09 AM", tags: ["work", "design"], channel: "design", isThread: false, isDM: false },
-    { id: 5, source: "Email", sender: "Notion", content: "Notion: Weekly workspace summary is ready. You had 3 new pages shared.", timestamp: "9:05 AM", tags: ["tools"], subject: "Weekly Workspace Summary" },
-    { id: 6, source: "Email", sender: "Notion", content: "Notion: Weekly workspace summary is ready. You had 3 new pages shared.", timestamp: "9:05 AM", tags: ["tools"], subject: "Weekly Workspace Summary" },
-    { id: 7, source: "Email", sender: "Notion", content: "Notion: Weekly workspace summary is ready. You had 3 new pages shared.", timestamp: "9:05 AM", tags: ["tools"], subject: "Weekly Workspace Summary" },
-    { id: 8, source: "Email", sender: "Notion", content: "Notion: Weekly workspace summary is ready. You had 3 new pages shared.", timestamp: "9:05 AM", tags: ["tools"], subject: "Weekly Workspace Summary" },
-    { id: 9, source: "Email", sender: "Notion", content: "Notion: Weekly workspace summary is ready. You had 3 new pages shared.", timestamp: "9:05 AM", tags: ["tools"], subject: "Weekly Workspace Summary" },
-    { id: 10, source: "Email", sender: "Notion", content: "Notion: Weekly workspace summary is ready. You had 3 new pages shared.", timestamp: "9:05 AM", tags: ["tools"], subject: "Weekly Workspace Summary" },
-    { id: 11, source: "Email", sender: "Notion", content: "Notion: Weekly workspace summary is ready. You had 3 new pages shared.", timestamp: "9:05 AM", tags: ["tools"], subject: "Weekly Workspace Summary" },
-  ]);
+  const [messages, setMessages] = useState([]);
+
+  useEffect(() => {
+    async function fetchMessages() {
+      const { data, error } = await supabase
+        .from('messages')
+        .select('*')
+        .order('created_at', { ascending: false });
+      if (error) {
+        alert(error.message);
+      } else {
+        setMessages(data);
+      }
+    }
+    fetchMessages();
+  }, []);
   const [isLeftPaneOpen, setIsLeftPaneOpen] = useState(true);
   const [expandedMsgId, setExpandedMsgId] = useState(null);
 
@@ -56,6 +59,11 @@ export default function FlattenApp() {
     11: ["Acknowledge the Notion summary."]
   };
   const [actionStepIdx, setActionStepIdx] = useState({});
+
+  const handleLogout = async () => {
+    const { error } = await supabase.auth.signOut()
+    if (error) console.log('Error logging out:', error.message)
+  }
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -113,10 +121,10 @@ export default function FlattenApp() {
   const deleteMessage = (id) => setMessages((msgs) => msgs.filter((m) => m.id !== id));
 
   return (
-    <div className={`${darkMode ? "dark bg-gray-900 text-white" : "bg-gray-50 text-black"} h-screen w-screen flex flex-col font-mono relative`}>
-      <div className="absolute top-4 right-6">
-        <button onClick={() => setDarkMode(d => !d)} className="p-2 rounded hover:bg-gray-200">
-          {darkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+    <div className="bg-gray-50 text-black h-screen w-screen flex flex-col font-mono relative">
+      <div className="absolute top-4 right-6 flex gap-2">
+        <button onClick={handleLogout} className="p-2 rounded bg-red-500 text-white z-50">
+          LOGOUT
         </button>
       </div>
       <div className="relative h-full flex-1">
@@ -149,21 +157,13 @@ export default function FlattenApp() {
               )}
             </button>
           </div>
-          {/* Lists section */}
-          <div className="flex items-center justify-between p-4 border-b border-gray-100">
-            {isLeftPaneOpen && <div className="font-semibold text-sm text-gray-500 uppercase">Lists</div>}
-          </div>
           <div className="flex-1 space-y-3 p-4">
             {isLeftPaneOpen ? (
-              lists.map((list, i) => (
-                <div key={i} className="p-2 rounded hover:bg-gray-100 cursor-pointer text-sm">
-                  {list}
-                </div>
-              ))
+              <ListsPane />
             ) : (
-              lists.map((_, i) => (
-                <div key={i} className="w-6 h-6 rounded bg-gray-100 mx-auto my-2" />
-              ))
+              <div className="flex flex-col items-center">
+                {/* Optionally show icons or placeholders when collapsed */}
+              </div>
             )}
           </div>
         </div>
