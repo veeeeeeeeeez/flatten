@@ -56,19 +56,27 @@ app.get('/auth/google/callback', async (req, res) => {
   const { tokens } = await oAuth2Client.getToken(code);
   oAuth2Client.setCredentials(tokens);
 
+  // Fetch email from auth.users
+  let email = null;
+  const { data: authUser, error: authError } = await supabase
+    .from('auth.users')
+    .select('email')
+    .eq('id', user_id)
+    .single();
+  if (authUser && authUser.email) email = authUser.email;
+
   // Save refresh token if present
   if (tokens.refresh_token) {
     // First, try to insert the user (in case they don't exist)
     const { error: insertError } = await supabase
       .from('users')
-      .insert([{ id: user_id, gmail_refresh_token: tokens.refresh_token }])
+      .insert([{ id: user_id, email, gmail_refresh_token: tokens.refresh_token }])
       .single();
-    
     // If insert fails (user already exists), then update
     if (insertError && insertError.code === '23505') { // Unique violation
       await supabase
         .from('users')
-        .update({ gmail_refresh_token: tokens.refresh_token })
+        .update({ gmail_refresh_token: tokens.refresh_token, email })
         .eq('id', user_id);
     }
   }
@@ -127,9 +135,17 @@ app.get('/refresh-gmail', async (req, res) => {
   if (error || !user || !user.gmail_refresh_token) {
     // If user doesn't exist, create them (without refresh token)
     if (error && error.code === 'PGRST116') { // No rows returned
+      // Fetch email from auth.users
+      let email = null;
+      const { data: authUser, error: authError } = await supabase
+        .from('auth.users')
+        .select('email')
+        .eq('id', user_id)
+        .single();
+      if (authUser && authUser.email) email = authUser.email;
       await supabase
         .from('users')
-        .insert([{ id: user_id }]);
+        .insert([{ id: user_id, email }]);
     }
     return res.status(400).send('No refresh token found. Please reconnect Gmail.');
   }

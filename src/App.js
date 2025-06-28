@@ -13,6 +13,25 @@ export default function FlattenApp() {
   const [messages, setMessages] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
   const [hasGmailToken, setHasGmailToken] = useState(true); // Default to true to show Refresh Gmail
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
+
+  // Get user initial for profile picture
+  const [userInitial, setUserInitial] = useState('U');
+  useEffect(() => {
+    async function fetchUserInitial() {
+      let user = null;
+      if (supabase.auth.getUser) {
+        const { data } = await supabase.auth.getUser();
+        user = data.user;
+      } else {
+        user = supabase.auth.user();
+      }
+      if (user && user.email) {
+        setUserInitial(user.email[0].toUpperCase());
+      }
+    }
+    fetchUserInitial();
+  }, []);
 
   useEffect(() => {
     async function fetchMessages() {
@@ -80,6 +99,17 @@ export default function FlattenApp() {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
+
+  // Close profile menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (showProfileMenu && !event.target.closest('.fixed-profile-menu')) {
+        setShowProfileMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showProfileMenu]);
 
   // Global Tab/Y/N override for action items
   useEffect(() => {
@@ -226,24 +256,25 @@ export default function FlattenApp() {
 
   return (
     <div className="bg-gray-50 text-black h-screen w-screen flex flex-col font-mono relative">
-      <div className="absolute top-4 right-6 flex gap-2">
-        {hasGmailToken ? (
-          <button onClick={handleRefreshGmail} className="p-2 px-4 rounded border border-gray-200 bg-white text-black z-50 hover:bg-red-50 transition" disabled={refreshing}>
-            {refreshing ? 'Refreshing...' : 'Refresh Gmail'}
-          </button>
-        ) : (
-          <>
-            <button onClick={handleConnectGmail} className="p-2 px-4 rounded border border-gray-200 bg-white text-black z-50 hover:bg-blue-50 transition">
-              Connect Gmail
-            </button>
-            <button onClick={handleRefreshGmail} className="p-2 px-4 rounded border border-gray-200 bg-white text-black z-50 hover:bg-red-50 transition" disabled={refreshing}>
-              {refreshing ? 'Refreshing...' : 'Refresh Gmail'}
-            </button>
-          </>
+      {/* Fixed profile circle in top right with dropdown */}
+      <div className="fixed top-4 right-6 z-50 fixed-profile-menu">
+        <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold shadow-lg cursor-pointer"
+          onClick={() => setShowProfileMenu((v) => !v)}
+        >
+          {userInitial}
+        </div>
+        {showProfileMenu && (
+          <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg border border-gray-200 z-50">
+            <div className="py-1">
+              <button
+                onClick={handleLogout}
+                className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+              >
+                Logout
+              </button>
+            </div>
+          </div>
         )}
-        <button onClick={handleLogout} className="p-2 px-4 rounded border border-gray-200 bg-white text-black z-50 hover:bg-red-50 transition">
-          LOGOUT
-        </button>
       </div>
       <div className="relative h-full flex-1">
         {/* Left Pane */}
@@ -289,15 +320,24 @@ export default function FlattenApp() {
         <div className="flex justify-center items-start min-h-screen bg-gray-50">
           <div className="w-full max-w-2xl pt-8 bg-gray-50">
             <div className="mb-4 flex gap-4 text-sm px-4">
-          <select onChange={(e) => setFilter(f => ({ ...f, source: e.target.value }))} className="p-2 border rounded text-black">
-            <option value="All">All Platforms</option>
-            {allSources.map(s => <option key={s}>{s}</option>)}
-          </select>
-          <select onChange={(e) => setFilter(f => ({ ...f, tag: e.target.value }))} className="p-2 border rounded text-black">
-            <option value="All">All Tags</option>
-            {allTags.map(t => <option key={t}>{t}</option>)}
-          </select>
-        </div>
+              <select onChange={(e) => setFilter(f => ({ ...f, source: e.target.value }))} className="p-2 border rounded text-black">
+                <option value="All">All Platforms</option>
+                {allSources.map(s => <option key={s}>{s}</option>)}
+              </select>
+              <select onChange={(e) => setFilter(f => ({ ...f, tag: e.target.value }))} className="p-2 border rounded text-black">
+                <option value="All">All Tags</option>
+                {allTags.map(t => <option key={t}>{t}</option>)}
+              </select>
+              {hasGmailToken ? (
+                <button onClick={handleRefreshGmail} className="p-2 px-4 rounded border border-gray-200 bg-white text-black hover:bg-gray-50 transition" disabled={refreshing}>
+                  {refreshing ? 'Refreshing...' : 'Refresh Gmail'}
+                </button>
+              ) : (
+                <button onClick={handleConnectGmail} className="p-2 px-4 rounded border border-gray-200 bg-white text-black hover:bg-blue-50 transition">
+                  Connect Gmail
+                </button>
+              )}
+            </div>
             <div className="w-full px-4 overflow-y-auto space-y-4 transition-all duration-200 pb-32 bg-gray-50">
               {filtered.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-80 gap-4">
