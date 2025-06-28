@@ -12,6 +12,7 @@ export default function FlattenApp() {
   const [filter, setFilter] = useState({ source: "All", tag: "All" });
   const [messages, setMessages] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [hasGmailToken, setHasGmailToken] = useState(true); // Default to true to show Refresh Gmail
 
   useEffect(() => {
     async function fetchMessages() {
@@ -26,7 +27,9 @@ export default function FlattenApp() {
       }
     }
     fetchMessages();
+    checkGmailToken();
   }, []);
+
   const [isLeftPaneOpen, setIsLeftPaneOpen] = useState(true);
   const [expandedMsgId, setExpandedMsgId] = useState(null);
 
@@ -147,19 +150,20 @@ export default function FlattenApp() {
         if (!res.ok) {
           const errorText = await res.text();
           console.log('Error response:', errorText); // Debug log
+          if (errorText.includes('No refresh token found')) {
+            // Redirect to Gmail OAuth flow
+            window.location.href = `https://flatten.onrender.com/auth/google?user_id=${user.id}`;
+            return;
+          }
           throw new Error(errorText);
         }
+        const result = await res.text();
+        console.log('Success response:', result); // Debug log
+        
         // Re-fetch messages from Supabase
-        const { data, error } = await supabase
-          .from('messages')
-          .select('*')
-          .order('created_at', { ascending: false });
-        if (error) {
-          alert('Fetched Gmail, but failed to refresh messages: ' + error.message);
-        } else {
-          setMessages(data);
-          alert('Fetched and saved new emails!');
-        }
+        await refreshMessages();
+        // Update Gmail token status
+        setHasGmailToken(true);
       } catch (err) {
         console.error('Fetch error:', err); // Debug log
         alert('Failed to fetch Gmail: ' + err.message);
@@ -171,12 +175,72 @@ export default function FlattenApp() {
     }
   };
 
+  // Handle initial Gmail connection
+  const handleConnectGmail = async () => {
+    let user = null;
+    if (supabase.auth.getUser) {
+      const { data } = await supabase.auth.getUser();
+      user = data.user;
+    } else {
+      user = supabase.auth.user();
+    }
+    if (user && user.id) {
+      window.location.href = `https://flatten.onrender.com/auth/google?user_id=${user.id}`;
+    } else {
+      alert('You must be logged in to connect Gmail.');
+    }
+  };
+
+  // Function to refresh messages from Supabase
+  const refreshMessages = async () => {
+    const { data, error } = await supabase
+      .from('messages')
+      .select('*')
+      .order('created_at', { ascending: false });
+    if (error) {
+      console.error('Error refreshing messages:', error);
+    } else {
+      setMessages(data);
+    }
+  };
+
+  // Function to check if user has Gmail token
+  const checkGmailToken = async () => {
+    let user = null;
+    if (supabase.auth.getUser) {
+      const { data } = await supabase.auth.getUser();
+      user = data.user;
+    } else {
+      user = supabase.auth.user();
+    }
+    
+    if (user && user.id) {
+      try {
+        const res = await fetch(`https://flatten.onrender.com/refresh-gmail?user_id=${user.id}`);
+        setHasGmailToken(res.ok);
+      } catch (err) {
+        setHasGmailToken(false);
+      }
+    }
+  };
+
   return (
     <div className="bg-gray-50 text-black h-screen w-screen flex flex-col font-mono relative">
       <div className="absolute top-4 right-6 flex gap-2">
-        <button onClick={handleRefreshGmail} className="p-2 px-4 rounded border border-gray-200 bg-white text-black z-50 hover:bg-red-50 transition" disabled={refreshing}>
-          {refreshing ? 'Refreshing...' : 'Refresh Gmail'}
-        </button>
+        {hasGmailToken ? (
+          <button onClick={handleRefreshGmail} className="p-2 px-4 rounded border border-gray-200 bg-white text-black z-50 hover:bg-red-50 transition" disabled={refreshing}>
+            {refreshing ? 'Refreshing...' : 'Refresh Gmail'}
+          </button>
+        ) : (
+          <>
+            <button onClick={handleConnectGmail} className="p-2 px-4 rounded border border-gray-200 bg-white text-black z-50 hover:bg-blue-50 transition">
+              Connect Gmail
+            </button>
+            <button onClick={handleRefreshGmail} className="p-2 px-4 rounded border border-gray-200 bg-white text-black z-50 hover:bg-red-50 transition" disabled={refreshing}>
+              {refreshing ? 'Refreshing...' : 'Refresh Gmail'}
+            </button>
+          </>
+        )}
         <button onClick={handleLogout} className="p-2 px-4 rounded border border-gray-200 bg-white text-black z-50 hover:bg-red-50 transition">
           LOGOUT
         </button>
