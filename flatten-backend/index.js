@@ -82,8 +82,7 @@ app.get('/auth/google/callback', async (req, res) => {
       }]);
     }
   }
-
-  res.send('Fetched and saved emails to Supabase!');
+  res.redirect('https://flatten-seven.vercel.app/');
 });
 
 app.get('/test', (req, res) => {
