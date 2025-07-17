@@ -4,7 +4,7 @@ const { google } = require('googleapis');
 const { createClient } = require('@supabase/supabase-js');
 
 const app = express();
-const port = 8081;
+const port = process.env.PORT || 8081;
 
 // Add CORS middleware
 app.use((req, res, next) => {
