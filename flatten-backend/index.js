@@ -51,7 +51,8 @@ app.get('/auth/google', (req, res) => {
       'https://www.googleapis.com/auth/contacts.readonly'
     ],
     prompt: 'consent',
-    state
+    state,
+    include_granted_scopes: true
   });
   res.redirect(url);
 });
@@ -320,6 +321,28 @@ app.post('/send-email', async (req, res) => {
 
 app.get('/test', (req, res) => {
     res.send('Hello from test route!');
+});
+
+// Force re-authorization endpoint
+app.get('/reauth', (req, res) => {
+  const user_id = req.query.user_id;
+  console.log('Force re-authorization for user:', user_id);
+  const state = Math.random().toString(36).substring(2);
+  userIdMap[state] = user_id;
+  const url = oAuth2Client.generateAuthUrl({
+    access_type: 'offline',
+    scope: [
+      'https://www.googleapis.com/auth/gmail.readonly',
+      'https://www.googleapis.com/auth/gmail.send',
+      'https://www.googleapis.com/auth/gmail.compose',
+      'https://www.googleapis.com/auth/gmail.modify',
+      'https://www.googleapis.com/auth/contacts.readonly'
+    ],
+    prompt: 'consent',
+    state,
+    include_granted_scopes: true
+  });
+  res.redirect(url);
 });
 
 app.listen(port, () => {

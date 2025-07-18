@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { X, Trash2, Plus, Paperclip, Send, Save } from "lucide-react";
+import { X, Trash2, Plus, Paperclip, Send, Save, RefreshCw } from "lucide-react";
 import { supabase } from './supabaseClient';
 import { format, parseISO, isSameDay } from 'date-fns';
 import { Message, Filter, ActionStepIndex, MockActionItems, List } from './types';
@@ -254,9 +254,7 @@ export default function FlattenApp(): JSX.Element {
     const user = data.user;
     if (user && user.id) {
       try {
-        const apiBaseUrl = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
-          ? 'http://localhost:8081' 
-          : 'https://flatten.onrender.com';
+        const apiBaseUrl = 'https://flatten.onrender.com';
         
         const res = await fetch(`${apiBaseUrl}/contacts?user_id=${user.id}`);
         if (res.ok) {
@@ -330,9 +328,7 @@ export default function FlattenApp(): JSX.Element {
     if (user && user.id) {
       setRefreshing(true);
       try {
-        const apiBaseUrl = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
-          ? 'http://localhost:8081' 
-          : 'https://flatten.onrender.com';
+        const apiBaseUrl = 'https://flatten.onrender.com';
         
         console.log('Making request to:', `${apiBaseUrl}/refresh-gmail?user_id=${user.id}`);
         const res = await fetch(`${apiBaseUrl}/refresh-gmail?user_id=${user.id}`);
@@ -370,9 +366,7 @@ export default function FlattenApp(): JSX.Element {
     const { data } = await supabase.auth.getUser();
     const user = data.user;
     if (user && user.id) {
-      const apiBaseUrl = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
-        ? 'http://localhost:8081' 
-        : 'https://flatten.onrender.com';
+      const apiBaseUrl = 'https://flatten.onrender.com';
       window.location.href = `${apiBaseUrl}/auth/google?user_id=${user.id}`;
     } else {
       alert('You must be logged in to connect Gmail.');
@@ -399,9 +393,7 @@ export default function FlattenApp(): JSX.Element {
     
     if (user && user.id) {
       try {
-        const apiBaseUrl = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
-          ? 'http://localhost:8081' 
-          : 'https://flatten.onrender.com';
+        const apiBaseUrl = 'https://flatten.onrender.com';
         const res = await fetch(`${apiBaseUrl}/refresh-gmail?user_id=${user.id}`);
         setHasGmailToken(res.ok);
       } catch (err) {
@@ -1198,9 +1190,7 @@ export default function FlattenApp(): JSX.Element {
                             return;
                           }
                           
-                          const apiBaseUrl = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
-                            ? 'http://localhost:8081' 
-                            : 'https://flatten.onrender.com';
+                          const apiBaseUrl = 'https://flatten.onrender.com';
                           
                           const response = await fetch(`${apiBaseUrl}/send-email`, {
                             method: 'POST',
@@ -1217,6 +1207,14 @@ export default function FlattenApp(): JSX.Element {
                               attachments: emailAttachments
                             })
                           });
+
+                          // Check if response is JSON
+                          const contentType = response.headers.get('content-type');
+                          if (!contentType || !contentType.includes('application/json')) {
+                            const text = await response.text();
+                            console.error('Non-JSON response:', text);
+                            throw new Error('Server returned non-JSON response. Please re-authorize Gmail.');
+                          }
                           
                           const result = await response.json();
                           
@@ -1252,6 +1250,30 @@ export default function FlattenApp(): JSX.Element {
                     >
                       <Save className="w-4 h-4" />
                       Save Draft
+                    </button>
+                    <button 
+                      className="reauth-button"
+                      onClick={async () => {
+                        try {
+                          const { data } = await supabase.auth.getUser();
+                          const user = data.user;
+                          
+                          if (!user || !user.id) {
+                            alert('You must be logged in to re-authorize Gmail.');
+                            return;
+                          }
+                          
+                          const apiBaseUrl = 'https://flatten.onrender.com';
+                          
+                          window.location.href = `${apiBaseUrl}/auth/google?user_id=${user.id}`;
+                        } catch (error) {
+                          console.error('Re-auth error:', error);
+                          alert('Failed to start re-authorization.');
+                        }
+                      }}
+                    >
+                      <RefreshCw className="w-4 h-4" />
+                      Re-connect Gmail
                     </button>
                   </div>
                 </div>
