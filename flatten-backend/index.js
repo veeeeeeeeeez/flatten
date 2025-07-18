@@ -6,6 +6,10 @@ const { createClient } = require('@supabase/supabase-js');
 const app = express();
 const port = process.env.PORT || 8081;
 
+// Add body parsing middleware
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
 // Add CORS middleware
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*');
@@ -39,7 +43,13 @@ app.get('/auth/google', (req, res) => {
   userIdMap[state] = user_id;
   const url = oAuth2Client.generateAuthUrl({
     access_type: 'offline',
-    scope: ['https://www.googleapis.com/auth/gmail.readonly'],
+    scope: [
+      'https://www.googleapis.com/auth/gmail.readonly',
+      'https://www.googleapis.com/auth/gmail.send',
+      'https://www.googleapis.com/auth/gmail.compose',
+      'https://www.googleapis.com/auth/gmail.modify',
+      'https://www.googleapis.com/auth/contacts.readonly'
+    ],
     prompt: 'consent',
     state
   });
@@ -193,6 +203,118 @@ app.get('/refresh-gmail', async (req, res) => {
   } catch (err) {
     console.error('Gmail refresh error:', err);
     res.status(500).send('Failed to fetch emails.');
+  }
+});
+
+// Add endpoint to fetch contacts
+app.get('/contacts', async (req, res) => {
+  const user_id = req.query.user_id;
+  
+  // 1. Get refresh token from Supabase
+  const { data: user, error } = await supabase
+    .from('users')
+    .select('gmail_refresh_token')
+    .eq('id', user_id)
+    .single();
+
+  if (error || !user || !user.gmail_refresh_token) {
+    return res.status(400).send('No refresh token found. Please reconnect Gmail.');
+  }
+
+  try {
+    // 2. Set up OAuth2 client with refresh token
+    oAuth2Client.setCredentials({ refresh_token: user.gmail_refresh_token });
+    
+    // 3. Fetch contacts using Google People API
+    const people = google.people({ version: 'v1', auth: oAuth2Client });
+    const contactsRes = await people.people.connections.list({
+      resourceName: 'people/me',
+      pageSize: 1000,
+      personFields: 'names,emailAddresses,photos'
+    });
+    
+    const contacts = contactsRes.data.connections || [];
+    const formattedContacts = contacts.map(contact => ({
+      id: contact.resourceName,
+      name: contact.names?.[0]?.displayName || 'Unknown',
+      email: contact.emailAddresses?.[0]?.value || '',
+      photo: contact.photos?.[0]?.url || null
+    })).filter(contact => contact.email); // Only return contacts with emails
+    
+    res.json(formattedContacts);
+  } catch (err) {
+    console.error('Contacts fetch error:', err);
+    res.status(500).send('Failed to fetch contacts.');
+  }
+});
+
+// Add endpoint to send emails
+app.post('/send-email', async (req, res) => {
+  const user_id = req.body.user_id;
+  const { to, cc, bcc, subject, content, attachments } = req.body;
+  
+  // 1. Get refresh token from Supabase
+  const { data: user, error } = await supabase
+    .from('users')
+    .select('gmail_refresh_token')
+    .eq('id', user_id)
+    .single();
+
+  if (error || !user || !user.gmail_refresh_token) {
+    return res.status(400).send('No refresh token found. Please reconnect Gmail.');
+  }
+
+  try {
+    // 2. Set up OAuth2 client with refresh token
+    oAuth2Client.setCredentials({ refresh_token: user.gmail_refresh_token });
+    
+    // 3. Create email message
+    const gmail = google.gmail({ version: 'v1', auth: oAuth2Client });
+    
+    // Build email headers
+    const headers = [
+      `To: ${to}`,
+      `Subject: ${subject}`,
+      'Content-Type: text/html; charset=utf-8',
+      'MIME-Version: 1.0'
+    ];
+    
+    if (cc && cc.trim()) headers.push(`Cc: ${cc}`);
+    if (bcc && bcc.trim()) headers.push(`Bcc: ${bcc}`);
+    
+    // Ensure proper line endings for email format
+    const emailContent = headers.join('\r\n') + '\r\n\r\n' + content;
+    
+    // Encode the email in base64
+    const encodedEmail = Buffer.from(emailContent).toString('base64').replace(/\+/g, '-').replace(/\//g, '_');
+    
+    console.log('Sending email to:', to);
+    console.log('Subject:', subject);
+    console.log('Content length:', content.length);
+    
+    // Send the email
+    const sendRes = await gmail.users.messages.send({
+      userId: 'me',
+      requestBody: {
+        raw: encodedEmail
+      }
+    });
+    
+    console.log('Email sent successfully, message ID:', sendRes.data.id);
+    
+    res.json({ 
+      success: true, 
+      messageId: sendRes.data.id,
+      message: 'Email sent successfully!' 
+    });
+    
+  } catch (err) {
+    console.error('Email send error:', err);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to send email.',
+      details: err.message 
+    });
   }
 });
 

@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { X, Trash2, Plus } from "lucide-react";
+import { X, Trash2, Plus, Paperclip, Send, Save } from "lucide-react";
 import { supabase } from './supabaseClient';
 import { format, parseISO, isSameDay } from 'date-fns';
 import { Message, Filter, ActionStepIndex, MockActionItems, List } from './types';
 import { fetchLists, addList } from "./api/lists";
+import ReactQuill from 'react-quill';
+import 'react-quill/dist/quill.snow.css';
 import './styles/App.css';
 
 export default function FlattenApp(): JSX.Element {
@@ -65,7 +67,6 @@ export default function FlattenApp(): JSX.Element {
     }
   }, [addingList]);
 
-
   const [expandedMessages, setExpandedMessages] = useState<Set<string>>(new Set());
   const [selectedMessages, setSelectedMessages] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState<string>("");
@@ -74,6 +75,22 @@ export default function FlattenApp(): JSX.Element {
   const [emailRecipient, setEmailRecipient] = useState<string>("");
   const [emailSubject, setEmailSubject] = useState<string>("");
   const [emailContent, setEmailContent] = useState<string>("");
+  const [emailCc, setEmailCc] = useState<string>("");
+  const [emailBcc, setEmailBcc] = useState<string>("");
+  const [emailAttachments, setEmailAttachments] = useState<File[]>([]);
+  const [showCc, setShowCc] = useState<boolean>(false);
+  const [showBcc, setShowBcc] = useState<boolean>(false);
+  const [contacts, setContacts] = useState<Array<{id: string, name: string, email: string, photo?: string}>>([]);
+  const [showContactSuggestions, setShowContactSuggestions] = useState<boolean>(false);
+  const [filteredContacts, setFilteredContacts] = useState<Array<{id: string, name: string, email: string, photo?: string}>>([]);
+  const [activeField, setActiveField] = useState<'to' | 'cc' | 'bcc' | null>(null);
+
+  // Fetch contacts when email composer is shown
+  useEffect(() => {
+    if (showEmailComposer) {
+      fetchContacts();
+    }
+  }, [showEmailComposer]);
   const [isRightPaneVisible, setIsRightPaneVisible] = useState<boolean>(true);
   const [rightPaneWidth, setRightPaneWidth] = useState<number>(400);
   const [isDragging, setIsDragging] = useState<boolean>(false);
@@ -190,6 +207,90 @@ export default function FlattenApp(): JSX.Element {
     document.addEventListener('dragend', handleGlobalDragEnd);
     return () => document.removeEventListener('dragend', handleGlobalDragEnd);
   }, []);
+
+  // Quill editor configuration
+  const quillModules = {
+    toolbar: [
+      [{ 'header': [1, 2, 3, false] }],
+      ['bold', 'italic', 'underline', 'strike'],
+      [{ 'color': [] }, { 'background': [] }],
+      [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+      [{ 'align': [] }],
+      ['link', 'image'],
+      ['clean']
+    ],
+  };
+
+  const quillFormats = [
+    'header', 'bold', 'italic', 'underline', 'strike',
+    'color', 'background', 'list', 'bullet', 'align',
+    'link', 'image'
+  ];
+
+  // File attachment handlers
+  const handleFileAttachment = (event: React.ChangeEvent<HTMLInputElement>): void => {
+    const files = event.target.files;
+    if (files) {
+      const newFiles = Array.from(files);
+      setEmailAttachments(prev => [...prev, ...newFiles]);
+    }
+  };
+
+  const removeAttachment = (index: number): void => {
+    setEmailAttachments(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const formatFileSize = (bytes: number): string => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+
+  // Contact fetching and autocomplete
+  const fetchContacts = async (): Promise<void> => {
+    const { data } = await supabase.auth.getUser();
+    const user = data.user;
+    if (user && user.id) {
+      try {
+        const apiBaseUrl = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
+          ? 'http://localhost:8081' 
+          : 'https://flatten.onrender.com';
+        
+        const res = await fetch(`${apiBaseUrl}/contacts?user_id=${user.id}`);
+        if (res.ok) {
+          const contactsData = await res.json();
+          setContacts(contactsData);
+        }
+      } catch (err) {
+        console.error('Failed to fetch contacts:', err);
+      }
+    }
+  };
+
+  const handleEmailInputChange = (value: string, field: 'to' | 'cc' | 'bcc'): void => {
+    const setter = field === 'to' ? setEmailRecipient : field === 'cc' ? setEmailCc : setEmailBcc;
+    setter(value);
+    
+    if (value.trim()) {
+      const filtered = contacts.filter(contact => 
+        contact.name.toLowerCase().includes(value.toLowerCase()) ||
+        contact.email.toLowerCase().includes(value.toLowerCase())
+      );
+      setFilteredContacts(filtered);
+      setShowContactSuggestions(true);
+      setActiveField(field);
+    } else {
+      setShowContactSuggestions(false);
+    }
+  };
+
+  const selectContact = (contact: {id: string, name: string, email: string}): void => {
+    const setter = activeField === 'to' ? setEmailRecipient : activeField === 'cc' ? setEmailCc : setEmailBcc;
+    setter(contact.email);
+    setShowContactSuggestions(false);
+  };
 
   const tagColor = (tag: string): string => {
     const map: { [key: string]: string } = {
@@ -710,6 +811,11 @@ export default function FlattenApp(): JSX.Element {
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyPress={(e) => {
                   if (e.key === 'Enter' && searchQuery.trim()) {
+                    // Show right pane if it's hidden
+                    if (!isRightPaneVisible) {
+                      setIsRightPaneVisible(true);
+                    }
+                    
                     // Extract recipient from selected messages
                     const selectedMsg = Array.from(selectedMessages)[0];
                     const msg = messages.find(m => m.id === selectedMsg);
@@ -737,7 +843,45 @@ export default function FlattenApp(): JSX.Element {
                   }
                 }}
               />
-              <button className="send-search-button">
+              <button 
+                className="send-search-button"
+                onClick={() => {
+                  if (searchQuery.trim()) {
+                    // Show right pane if it's hidden
+                    if (!isRightPaneVisible) {
+                      setIsRightPaneVisible(true);
+                    }
+                    
+                    // Get the first selected message for context
+                    const selectedMessageIds = Array.from(selectedMessages);
+                    let recipient = "";
+                    let msg = null;
+                    
+                    if (selectedMessageIds.length > 0) {
+                      msg = messages.find(m => m.id === selectedMessageIds[0]);
+                      if (msg && msg.sender) {
+                        function decodeHTMLEntities(str: string): string {
+                          const txt = document.createElement('textarea');
+                          txt.innerHTML = str;
+                          return txt.value;
+                        }
+                        const match = msg.sender.match(/^(.*?)\s*<([^>]+)>$/);
+                        if (match) {
+                          recipient = decodeHTMLEntities(match[2]); // Email address
+                        } else {
+                          recipient = decodeHTMLEntities(msg.sender);
+                        }
+                      }
+                    }
+                    
+                    setEmailRecipient(recipient);
+                    setEmailSubject("Re: " + (msg?.subject || ""));
+                    setEmailContent(searchQuery);
+                    setShowEmailComposer(true);
+                    setSearchQuery("");
+                  }
+                }}
+              >
                 <svg className="w-5 h-5" viewBox="0 0 24 24" fill="white" xmlns="http://www.w3.org/2000/svg">
                   <circle cx="12" cy="12" r="12" fill="black" />
                   <path d="M12 8V16M12 8L8 12M12 8L16 12" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
@@ -827,7 +971,7 @@ export default function FlattenApp(): JSX.Element {
                       <path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/>
                     </svg>
                   </div>
-                  <div className="action-card-title">Send Email Response</div>
+                  <div className="action-card-title">Compose Email</div>
                   <button 
                     onClick={() => setShowEmailComposer(false)} 
                     className="action-card-close"
@@ -836,16 +980,143 @@ export default function FlattenApp(): JSX.Element {
                   </button>
                 </div>
                 <div className="action-card-content">
+                  {/* Recipients Section */}
                   <div className="email-field">
                     <label className="email-label">To:</label>
-                    <input
-                      type="email"
-                      className="email-input"
-                      value={emailRecipient}
-                      onChange={(e) => setEmailRecipient(e.target.value)}
-                      placeholder="recipient@example.com"
-                    />
+                    <div className="email-input-container">
+                      <input
+                        type="email"
+                        className="email-input"
+                        value={emailRecipient}
+                        onChange={(e) => handleEmailInputChange(e.target.value, 'to')}
+                        onFocus={() => setActiveField('to')}
+                        placeholder="recipient@example.com"
+                      />
+                      {showContactSuggestions && activeField === 'to' && filteredContacts.length > 0 && (
+                        <div className="contact-suggestions">
+                          {filteredContacts.slice(0, 5).map((contact) => (
+                            <div
+                              key={contact.id}
+                              className="contact-suggestion-item"
+                              onClick={() => selectContact(contact)}
+                            >
+                              <div className="contact-avatar">
+                                {contact.photo ? (
+                                  <img src={contact.photo} alt={contact.name} className="contact-photo" />
+                                ) : (
+                                  <span className="contact-initial">{contact.name.charAt(0).toUpperCase()}</span>
+                                )}
+                              </div>
+                              <div className="contact-info">
+                                <div className="contact-name">{contact.name}</div>
+                                <div className="contact-email">{contact.email}</div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
+                  
+                  {/* CC Field */}
+                  {showCc && (
+                    <div className="email-field">
+                      <label className="email-label">Cc:</label>
+                      <div className="email-input-container">
+                        <input
+                          type="email"
+                          className="email-input"
+                          value={emailCc}
+                          onChange={(e) => handleEmailInputChange(e.target.value, 'cc')}
+                          onFocus={() => setActiveField('cc')}
+                          placeholder="cc@example.com"
+                        />
+                        {showContactSuggestions && activeField === 'cc' && filteredContacts.length > 0 && (
+                          <div className="contact-suggestions">
+                            {filteredContacts.slice(0, 5).map((contact) => (
+                              <div
+                                key={contact.id}
+                                className="contact-suggestion-item"
+                                onClick={() => selectContact(contact)}
+                              >
+                                <div className="contact-avatar">
+                                  {contact.photo ? (
+                                    <img src={contact.photo} alt={contact.name} className="contact-photo" />
+                                  ) : (
+                                    <span className="contact-initial">{contact.name.charAt(0).toUpperCase()}</span>
+                                  )}
+                                </div>
+                                <div className="contact-info">
+                                  <div className="contact-name">{contact.name}</div>
+                                  <div className="contact-email">{contact.email}</div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* BCC Field */}
+                  {showBcc && (
+                    <div className="email-field">
+                      <label className="email-label">Bcc:</label>
+                      <div className="email-input-container">
+                        <input
+                          type="email"
+                          className="email-input"
+                          value={emailBcc}
+                          onChange={(e) => handleEmailInputChange(e.target.value, 'bcc')}
+                          onFocus={() => setActiveField('bcc')}
+                          placeholder="bcc@example.com"
+                        />
+                        {showContactSuggestions && activeField === 'bcc' && filteredContacts.length > 0 && (
+                          <div className="contact-suggestions">
+                            {filteredContacts.slice(0, 5).map((contact) => (
+                              <div
+                                key={contact.id}
+                                className="contact-suggestion-item"
+                                onClick={() => selectContact(contact)}
+                              >
+                                <div className="contact-avatar">
+                                  {contact.photo ? (
+                                    <img src={contact.photo} alt={contact.name} className="contact-photo" />
+                                  ) : (
+                                    <span className="contact-initial">{contact.name.charAt(0).toUpperCase()}</span>
+                                  )}
+                                </div>
+                                <div className="contact-info">
+                                  <div className="contact-name">{contact.name}</div>
+                                  <div className="contact-email">{contact.email}</div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Show/Hide CC/BCC Buttons */}
+                  <div className="email-options">
+                    <button
+                      type="button"
+                      className="email-option-button"
+                      onClick={() => setShowCc(!showCc)}
+                    >
+                      {showCc ? 'Hide Cc' : 'Add Cc'}
+                    </button>
+                    <button
+                      type="button"
+                      className="email-option-button"
+                      onClick={() => setShowBcc(!showBcc)}
+                    >
+                      {showBcc ? 'Hide Bcc' : 'Add Bcc'}
+                    </button>
+                  </div>
+                  
+                  {/* Subject Field */}
                   <div className="email-field">
                     <label className="email-label">Subject:</label>
                     <input
@@ -856,25 +1127,121 @@ export default function FlattenApp(): JSX.Element {
                       placeholder="Subject"
                     />
                   </div>
+                  
+                  {/* Attachments Section */}
+                  <div className="email-attachments-section">
+                    <div className="email-attachments-header">
+                      <label className="email-label">Attachments:</label>
+                      <input
+                        type="file"
+                        multiple
+                        onChange={handleFileAttachment}
+                        className="file-input"
+                        id="file-attachment"
+                      />
+                      <label htmlFor="file-attachment" className="attachment-button">
+                        <Paperclip className="w-4 h-4" />
+                        Add Files
+                      </label>
+                    </div>
+                    {emailAttachments.length > 0 && (
+                      <div className="attachments-list">
+                        {emailAttachments.map((file, index) => (
+                          <div key={index} className="attachment-item">
+                            <div className="attachment-info">
+                              <span className="attachment-name">{file.name}</span>
+                              <span className="attachment-size">{formatFileSize(file.size)}</span>
+                            </div>
+                            <button
+                              onClick={() => removeAttachment(index)}
+                              className="remove-attachment"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* Rich Text Editor */}
                   <div className="email-field">
                     <label className="email-label">Message:</label>
-                    <textarea
-                      className="email-textarea"
-                      value={emailContent}
-                      onChange={(e) => setEmailContent(e.target.value)}
-                      placeholder="Type your message here..."
-                      rows={12}
-                    />
+                    <div className="rich-text-editor">
+                      <ReactQuill
+                        theme="snow"
+                        value={emailContent}
+                        onChange={setEmailContent}
+                        modules={quillModules}
+                        formats={quillFormats}
+                        placeholder="Type your message here..."
+                      />
+                    </div>
                   </div>
+                  
+                  {/* Email Actions */}
                   <div className="email-actions">
                     <button 
                       className="send-email-button"
-                      onClick={() => {
-                        // TODO: Implement actual email sending
-                        alert('Email would be sent to: ' + emailRecipient);
-                        setShowEmailComposer(false);
+                      onClick={async () => {
+                        if (!emailRecipient.trim() || !emailSubject.trim() || !emailContent.trim()) {
+                          alert('Please fill in all required fields (To, Subject, and Message).');
+                          return;
+                        }
+                        
+                        try {
+                          const { data } = await supabase.auth.getUser();
+                          const user = data.user;
+                          
+                          if (!user || !user.id) {
+                            alert('You must be logged in to send emails.');
+                            return;
+                          }
+                          
+                          const apiBaseUrl = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
+                            ? 'http://localhost:8081' 
+                            : 'https://flatten.onrender.com';
+                          
+                          const response = await fetch(`${apiBaseUrl}/send-email`, {
+                            method: 'POST',
+                            headers: {
+                              'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({
+                              user_id: user.id,
+                              to: emailRecipient,
+                              cc: emailCc,
+                              bcc: emailBcc,
+                              subject: emailSubject,
+                              content: emailContent,
+                              attachments: emailAttachments
+                            })
+                          });
+                          
+                          const result = await response.json();
+                          
+                          if (result.success) {
+                            alert('Email sent successfully!');
+                            setShowEmailComposer(false);
+                            // Reset form
+                            setEmailRecipient('');
+                            setEmailSubject('');
+                            setEmailContent('');
+                            setEmailCc('');
+                            setEmailBcc('');
+                            setEmailAttachments([]);
+                          } else {
+                            console.error('Email send error:', result);
+                            alert('Failed to send email: ' + (result.error || 'Unknown error'));
+                          }
+                        } catch (error) {
+                          console.error('Email send error:', error);
+                          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+                          alert('Failed to send email. Please try again. Error: ' + errorMessage);
+                        }
                       }}
                     >
+                      <Send className="w-4 h-4" />
                       Send Email
                     </button>
                     <button 
@@ -883,6 +1250,7 @@ export default function FlattenApp(): JSX.Element {
                         alert('Draft saved');
                       }}
                     >
+                      <Save className="w-4 h-4" />
                       Save Draft
                     </button>
                   </div>
