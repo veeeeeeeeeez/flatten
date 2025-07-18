@@ -84,6 +84,7 @@ export default function FlattenApp(): JSX.Element {
   const [showContactSuggestions, setShowContactSuggestions] = useState<boolean>(false);
   const [filteredContacts, setFilteredContacts] = useState<Array<{id: string, name: string, email: string, photo?: string}>>([]);
   const [activeField, setActiveField] = useState<'to' | 'cc' | 'bcc' | null>(null);
+  const [emailConfirmation, setEmailConfirmation] = useState<{recipient: string, subject: string} | null>(null);
 
   // Fetch contacts when email composer is shown
   useEffect(() => {
@@ -129,7 +130,12 @@ export default function FlattenApp(): JSX.Element {
 
   const handleLogout = async (): Promise<void> => {
     const { error } = await supabase.auth.signOut();
-    if (error) console.log('Error logging out:', error.message);
+    if (error) {
+      console.log('Error logging out:', error.message);
+    } else {
+      // Redirect to home page after logout
+      window.location.href = '/';
+    }
   };
 
   const handleAddList = async (e: React.FormEvent): Promise<void> => {
@@ -271,10 +277,14 @@ export default function FlattenApp(): JSX.Element {
     const setter = field === 'to' ? setEmailRecipient : field === 'cc' ? setEmailCc : setEmailBcc;
     setter(value);
     
-    if (value.trim()) {
+    // Extract the last email being typed (after the last comma)
+    const emails = value.split(',').map(email => email.trim());
+    const lastEmail = emails[emails.length - 1];
+    
+    if (lastEmail && lastEmail.length > 0) {
       const filtered = contacts.filter(contact => 
-        contact.name.toLowerCase().includes(value.toLowerCase()) ||
-        contact.email.toLowerCase().includes(value.toLowerCase())
+        contact.name.toLowerCase().includes(lastEmail.toLowerCase()) ||
+        contact.email.toLowerCase().includes(lastEmail.toLowerCase())
       );
       setFilteredContacts(filtered);
       setShowContactSuggestions(true);
@@ -286,7 +296,18 @@ export default function FlattenApp(): JSX.Element {
 
   const selectContact = (contact: {id: string, name: string, email: string}): void => {
     const setter = activeField === 'to' ? setEmailRecipient : activeField === 'cc' ? setEmailCc : setEmailBcc;
-    setter(contact.email);
+    const currentValue = activeField === 'to' ? emailRecipient : activeField === 'cc' ? emailCc : emailBcc;
+    
+    // Split existing emails and remove the last incomplete one
+    const emails = currentValue.split(',').map(email => email.trim()).filter(email => email.length > 0);
+    emails.pop(); // Remove the last incomplete email
+    
+    // Add the selected contact's email
+    emails.push(contact.email);
+    
+    // Join with commas and add a comma for the next email
+    const newValue = emails.join(', ') + ', ';
+    setter(newValue);
     setShowContactSuggestions(false);
   };
 
@@ -943,7 +964,32 @@ export default function FlattenApp(): JSX.Element {
                   <div className="profile-dropdown">
                     <div className="py-1">
                       <button
-                        onClick={handleLogout}
+                        onClick={async () => {
+                          try {
+                            const { data } = await supabase.auth.getUser();
+                            const user = data.user;
+                            
+                            if (!user || !user.id) {
+                              alert('You must be logged in to re-connect Gmail.');
+                              return;
+                            }
+                            
+                            const apiBaseUrl = 'https://flatten.onrender.com';
+                            window.location.href = `${apiBaseUrl}/auth/google?user_id=${user.id}`;
+                          } catch (error) {
+                            console.error('Re-connect error:', error);
+                            alert('Failed to start re-connection.');
+                          }
+                        }}
+                        className="profile-dropdown-item"
+                      >
+                        Re-connect Gmail
+                      </button>
+                      <button
+                        onClick={() => {
+                          handleLogout();
+                          setShowProfileMenu(false);
+                        }}
                         className="profile-dropdown-item"
                       >
                         Logout
@@ -954,6 +1000,30 @@ export default function FlattenApp(): JSX.Element {
               </div>
             </div>
           <div className="actions-pane-content">
+            {/* Email Confirmation */}
+            {emailConfirmation && (
+              <div className="email-confirmation-card">
+                <div className="email-confirmation-header">
+                  <div className="email-confirmation-icon">
+                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                  </div>
+                  <div className="email-confirmation-title">Email Sent!</div>
+                </div>
+                <div className="email-confirmation-content">
+                  <div className="email-confirmation-detail">
+                    <span className="email-confirmation-label">To:</span>
+                    <span className="email-confirmation-value">{emailConfirmation.recipient}</span>
+                  </div>
+                  <div className="email-confirmation-detail">
+                    <span className="email-confirmation-label">Subject:</span>
+                    <span className="email-confirmation-value">{emailConfirmation.subject}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+            
             {/* Email Action Card */}
             {showEmailComposer && (
               <div className="action-card">
@@ -974,7 +1044,7 @@ export default function FlattenApp(): JSX.Element {
                 <div className="action-card-content">
                   {/* Recipients Section */}
                   <div className="email-field">
-                    <label className="email-label">To:</label>
+                    <label className="email-label">To: <span className="email-hint">(separate with commas)</span></label>
                     <div className="email-input-container">
                       <input
                         type="email"
@@ -982,7 +1052,7 @@ export default function FlattenApp(): JSX.Element {
                         value={emailRecipient}
                         onChange={(e) => handleEmailInputChange(e.target.value, 'to')}
                         onFocus={() => setActiveField('to')}
-                        placeholder="recipient@example.com"
+                        placeholder="recipient1@example.com, recipient2@example.com"
                       />
                       {showContactSuggestions && activeField === 'to' && filteredContacts.length > 0 && (
                         <div className="contact-suggestions">
@@ -1021,7 +1091,7 @@ export default function FlattenApp(): JSX.Element {
                           value={emailCc}
                           onChange={(e) => handleEmailInputChange(e.target.value, 'cc')}
                           onFocus={() => setActiveField('cc')}
-                          placeholder="cc@example.com"
+                          placeholder="cc1@example.com, cc2@example.com"
                         />
                         {showContactSuggestions && activeField === 'cc' && filteredContacts.length > 0 && (
                           <div className="contact-suggestions">
@@ -1061,7 +1131,7 @@ export default function FlattenApp(): JSX.Element {
                           value={emailBcc}
                           onChange={(e) => handleEmailInputChange(e.target.value, 'bcc')}
                           onFocus={() => setActiveField('bcc')}
-                          placeholder="bcc@example.com"
+                          placeholder="bcc1@example.com, bcc2@example.com"
                         />
                         {showContactSuggestions && activeField === 'bcc' && filteredContacts.length > 0 && (
                           <div className="contact-suggestions">
@@ -1176,8 +1246,18 @@ export default function FlattenApp(): JSX.Element {
                     <button 
                       className="send-email-button"
                       onClick={async () => {
-                        if (!emailRecipient.trim() || !emailSubject.trim() || !emailContent.trim()) {
+                        // Validate multiple recipients
+                        const recipients = emailRecipient.split(',').map(email => email.trim()).filter(email => email.length > 0);
+                        if (recipients.length === 0 || !emailSubject.trim() || !emailContent.trim()) {
                           alert('Please fill in all required fields (To, Subject, and Message).');
+                          return;
+                        }
+                        
+                        // Validate email format for all recipients
+                        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                        const invalidEmails = recipients.filter(email => !emailRegex.test(email));
+                        if (invalidEmails.length > 0) {
+                          alert(`Invalid email format: ${invalidEmails.join(', ')}`);
                           return;
                         }
                         
@@ -1199,7 +1279,7 @@ export default function FlattenApp(): JSX.Element {
                             },
                             body: JSON.stringify({
                               user_id: user.id,
-                              to: emailRecipient,
+                              to: recipients.join(', '), // Send all recipients as comma-separated
                               cc: emailCc,
                               bcc: emailBcc,
                               subject: emailSubject,
@@ -1219,7 +1299,11 @@ export default function FlattenApp(): JSX.Element {
                           const result = await response.json();
                           
                           if (result.success) {
-                            alert('Email sent successfully!');
+                            // Show confirmation in sidebar instead of alert
+                            setEmailConfirmation({
+                              recipient: recipients.join(', '),
+                              subject: emailSubject
+                            });
                             setShowEmailComposer(false);
                             // Reset form
                             setEmailRecipient('');
@@ -1228,6 +1312,11 @@ export default function FlattenApp(): JSX.Element {
                             setEmailCc('');
                             setEmailBcc('');
                             setEmailAttachments([]);
+                            
+                            // Clear confirmation after 5 seconds
+                            setTimeout(() => {
+                              setEmailConfirmation(null);
+                            }, 5000);
                           } else {
                             console.error('Email send error:', result);
                             alert('Failed to send email: ' + (result.error || 'Unknown error'));
@@ -1239,41 +1328,7 @@ export default function FlattenApp(): JSX.Element {
                         }
                       }}
                     >
-                      <Send className="w-4 h-4" />
                       Send Email
-                    </button>
-                    <button 
-                      className="save-draft-button"
-                      onClick={() => {
-                        alert('Draft saved');
-                      }}
-                    >
-                      <Save className="w-4 h-4" />
-                      Save Draft
-                    </button>
-                    <button 
-                      className="reauth-button"
-                      onClick={async () => {
-                        try {
-                          const { data } = await supabase.auth.getUser();
-                          const user = data.user;
-                          
-                          if (!user || !user.id) {
-                            alert('You must be logged in to re-authorize Gmail.');
-                            return;
-                          }
-                          
-                          const apiBaseUrl = 'https://flatten.onrender.com';
-                          
-                          window.location.href = `${apiBaseUrl}/auth/google?user_id=${user.id}`;
-                        } catch (error) {
-                          console.error('Re-auth error:', error);
-                          alert('Failed to start re-authorization.');
-                        }
-                      }}
-                    >
-                      <RefreshCw className="w-4 h-4" />
-                      Re-connect Gmail
                     </button>
                   </div>
                 </div>
