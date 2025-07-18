@@ -1,0 +1,51 @@
+.auth-container {
+  @apply min-h-screen flex items-center justify-center bg-gray-50;
+}
+
+.auth-form-container {
+  @apply max-w-md w-full space-y-8;
+}
+
+.auth-header {
+  @apply flex justify-center;
+}
+
+.auth-title {
+  @apply mt-6 text-center text-3xl font-extrabold text-gray-900;
+}
+
+.auth-form {
+  @apply mt-8 space-y-6;
+}
+
+.auth-input-group {
+  @apply rounded-md shadow-sm -space-y-px;
+}
+
+.auth-input-container {
+  /* Individual input container */
+}
+
+.auth-input {
+  @apply appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm;
+}
+
+.auth-input-top {
+  @apply rounded-t-md;
+}
+
+.auth-input-bottom {
+  @apply rounded-b-md;
+}
+
+.auth-submit-button {
+  @apply relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-black hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50;
+}
+
+.auth-toggle-container {
+  @apply text-center;
+}
+
+.auth-toggle-button {
+  @apply text-sm text-gray-600 hover:text-gray-900;
+} 

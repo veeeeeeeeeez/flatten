@@ -1,13 +1,15 @@
 import React, { useState, useEffect, useRef } from "react";
 import { fetchLists, addList } from "./api/lists";
 import { Plus } from "lucide-react";
+import { List } from "./types";
+import "./styles/ListsPane.css";
 
-export default function ListsPane() {
-  const [lists, setLists] = useState([]);
-  const [adding, setAdding] = useState(false);
-  const [newList, setNewList] = useState("");
-  const [loading, setLoading] = useState(true);
-  const inputRef = useRef(null);
+export default function ListsPane(): JSX.Element {
+  const [lists, setLists] = useState<List[]>([]);
+  const [adding, setAdding] = useState<boolean>(false);
+  const [newList, setNewList] = useState<string>("");
+  const [loading, setLoading] = useState<boolean>(true);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     fetchLists().then(lists => {
@@ -22,7 +24,7 @@ export default function ListsPane() {
     }
   }, [adding]);
 
-  const handleAddList = async (e) => {
+  const handleAddList = async (e: React.FormEvent): Promise<void> => {
     e.preventDefault();
     if (!newList.trim()) return;
     try {
@@ -31,16 +33,16 @@ export default function ListsPane() {
       setNewList("");
       setAdding(false);
     } catch (error) {
-      alert(error.message || JSON.stringify(error));
+      alert(error instanceof Error ? error.message : JSON.stringify(error));
     }
   };
 
   return (
-    <div>
-      <div className="flex items-center justify-between p-0 pb-2">
-        <div className="font-semibold text-sm text-gray-500 uppercase">Lists</div>
+    <div className="lists-container">
+      <div className="lists-header">
+        <div className="lists-title">Lists</div>
         <button
-          className="p-1 rounded hover:bg-gray-100"
+          className="add-button"
           onClick={() => {
             setAdding(true);
             setNewList("");
@@ -50,24 +52,23 @@ export default function ListsPane() {
         </button>
       </div>
       {adding && (
-        <form onSubmit={handleAddList} className="mb-2">
+        <form onSubmit={handleAddList} className="add-form">
           <input
             ref={inputRef}
             value={newList}
             onChange={e => setNewList(e.target.value)}
             placeholder="New list name"
-            className="border p-1 rounded w-full text-sm placeholder-gray-400"
+            className="add-input"
             onBlur={() => { setAdding(false); setNewList(""); }}
-            style={{ marginBottom: 4 }}
           />
         </form>
       )}
       {loading ? (
-        <div className="text-xs text-gray-400">Loading...</div>
+        <div className="loading-text">Loading...</div>
       ) : (
-        <ul className="space-y-2">
+        <ul className="lists-ul">
           {lists.map(list => (
-            <li key={list.id} className="p-2 rounded hover:bg-gray-100 cursor-pointer text-sm">
+            <li key={list.id} className="list-item">
               {list.name}
             </li>
           ))}
